@@ -95,34 +95,6 @@ function checkLimit(userId: string) {
   return () => { record.active = false; dailyUsage.set(userId, record); };
 }
 
-function demoAnswer(input: AskInput) {
-  const pageCitation = { title: `${input.book.title} · ${input.context.pageName}`, url: `#page-${input.context.pageId}`, sourceType: "book" as const };
-  const lower = input.question.toLowerCase();
-  const asksHistory = /历史|背景|建筑|风格|history|building|architecture/.test(lower);
-  const bookInfo = input.context.pageText
-    ? `当前页写道：“${input.context.pageText.replace(/\s+/g, " ").slice(0, 90)}${input.context.pageText.length > 90 ? "…" : ""}”。照片说明为“${input.context.imageAlt || input.context.imageName || "未命名照片"}”。`
-    : `当前页没有足以确定建筑名称的文字，照片说明为“${input.context.imageAlt || input.context.imageName || "未命名照片"}”。`;
-  const history = asksHistory
-    ? `仅凭当前照片无法可靠确认具体建筑，因此暂无足够资料给出这座建筑的确定建造史。从白色几何体量、水平开口和克制装饰来看，它可能与现代主义住宅语言有关；要继续核实，至少需要城市、建筑名称或更具辨识度的立面细节。`
-    : `这个问题可以先从摄影书内部的页面顺序和作者文字回答；若要补充外部事实，请给出更具体的建筑、地点或物件名称。`;
-  return {
-    answer: `${bookInfo}\n\n${history}`,
-    sections: {
-      book: bookInfo,
-      history,
-      interpretation: "构图把建筑压在画面下方，并保留了大量天空与空白。这可能强调建筑的孤立感和观看者与空间之间的距离；这属于视觉解读，不是历史事实。",
-    },
-    citations: [
-      pageCitation,
-      ...(asksHistory ? [
-        { title: "DOCOMOMO · 现代建筑遗产资料", url: "https://docomomo.com/", sourceType: "web" as const },
-        { title: "RIBA · Modernism", url: "https://www.architecture.com/explore-architecture/modernism", sourceType: "web" as const },
-      ] : []),
-    ],
-    mode: "demo",
-  };
-}
-
 function collectCitations(response: unknown) {
   const citations: Array<{ title: string; url: string; sourceType: "web" }> = [];
   const output = (response as { output?: Array<{ type?: string; content?: Array<{ annotations?: Array<{ type?: string; title?: string; url?: string }> }> }> }).output ?? [];
@@ -161,6 +133,7 @@ async function liveAnswer(input: AskInput, identity: RequestIdentity) {
     "你是摄影书内的资料问答助手。用简体中文回答。",
     "先区分摄影书内部信息、外部历史事实和视觉解读。外部事实必须有网页引用；证据不足时明确说“暂无足够资料”。",
     "不要猜测具体建筑或人物身份，不要把视觉推测写成事实。回答简洁，但保留关键证据和不确定性。",
+    "即使问题不是识图问题，也要正常回答可核实的常识和地点问题。例如询问‘布拉格在哪’时，应说明国家与地理位置，并通过网页检索给出可靠来源。",
     `摄影书：${input.book.title}\n说明：${input.book.description}`,
     `整本书文本索引：\n${bookContext || "无"}`,
     `向量检索片段：\n${retrievedContext || "无"}`,
@@ -184,7 +157,14 @@ async function liveAnswer(input: AskInput, identity: RequestIdentity) {
   } as never);
   const outputModeration = await client.moderations.create({ model: "omni-moderation-latest", input: response.output_text });
   if (outputModeration.results[0]?.flagged) throw new Error("回答未通过内容安全检查");
-  const citations = collectCitations(response);
+  const citations = [
+    {
+      title: `${input.book.title} · 第 ${input.book.pages.find((page) => page.id === input.context.pageId)?.number ?? 1} 页`,
+      url: `#page-${input.context.pageId}`,
+      sourceType: "book" as const,
+    },
+    ...collectCitations(response),
+  ];
   return { answer: response.output_text, citations, mode: "live" };
 }
 
@@ -195,6 +175,9 @@ export async function POST(request: Request) {
   let identity: RequestIdentity | undefined;
   let status = "error";
   try {
+    if (!process.env.OPENAI_API_KEY) {
+      return NextResponse.json({ error: "AI 服务尚未启用" }, { status: 503 });
+    }
     input = requestSchema.parse(await request.json());
     identity = await authorizeRequest(request, input);
     release = checkLimit(createHash("sha256").update(identity.userId).digest("hex"));
@@ -204,7 +187,7 @@ export async function POST(request: Request) {
       status = "ok";
       return NextResponse.json({ ...(cached.result as object), cached: true });
     }
-    const result = process.env.OPENAI_API_KEY ? await liveAnswer(input, identity) : demoAnswer(input);
+    const result = await liveAnswer(input, identity);
     answerCache.set(key, { expiresAt: Date.now() + 24 * 60 * 60 * 1000, result });
     status = "ok";
     return NextResponse.json(result);

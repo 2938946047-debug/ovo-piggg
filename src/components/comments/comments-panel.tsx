@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Loader2, LogIn, MessageCircle, Send, Trash2, X } from "lucide-react";
-import { DEMO_OTP, DEMO_READER, demoAuthHeaders } from "@/lib/demo-auth";
+import { useAuth } from "@/components/auth/auth-provider";
 import type { BookComment, Photobook } from "@/types/book";
 
 interface CommentsPanelProps {
@@ -13,16 +13,14 @@ interface CommentsPanelProps {
   onCountChange?: (count: number) => void;
 }
 
-const SESSION_KEY = "white-page-demo-login-v2";
-
 export function CommentsPanel({ open, onClose, book, pageNumber, onCountChange }: CommentsPanelProps) {
+  const auth = useAuth();
   const [comments, setComments] = useState<BookComment[]>([]);
   const [body, setBody] = useState("");
   const [attachPage, setAttachPage] = useState(true);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
-  const [loggedIn, setLoggedIn] = useState(false);
   const [email, setEmail] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
@@ -30,16 +28,12 @@ export function CommentsPanel({ open, onClose, book, pageNumber, onCountChange }
   const versionId = book.publishedSnapshot?.id;
 
   useEffect(() => {
-    setLoggedIn(localStorage.getItem(SESSION_KEY) === "true");
-  }, []);
-
-  useEffect(() => {
     if (!open || !versionId) return;
     let active = true;
     setLoading(true);
-    fetch(`/api/public/books/${book.slug}/comments`, {
-      headers: loggedIn ? demoAuthHeaders(DEMO_READER.id) : undefined,
-    })
+    void auth.getAccessToken().then((token) => fetch(`/api/public/books/${book.slug}/comments`, {
+      headers: token ? { authorization: `Bearer ${token}` } : undefined,
+    }))
       .then(async (response) => {
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || "无法加载评论");
@@ -50,7 +44,7 @@ export function CommentsPanel({ open, onClose, book, pageNumber, onCountChange }
       .catch((requestError) => active && setError(requestError instanceof Error ? requestError.message : "无法加载评论"))
       .finally(() => active && setLoading(false));
     return () => { active = false; };
-  }, [book.slug, loggedIn, onCountChange, open, versionId]);
+  }, [auth.getAccessToken, auth.user, book.slug, onCountChange, open, versionId]);
 
   useEffect(() => {
     if (open) endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -62,17 +56,24 @@ export function CommentsPanel({ open, onClose, book, pageNumber, onCountChange }
 
   if (!open) return null;
 
-  const requestCode = () => {
+  const requestCode = async () => {
     if (!/^\S+@\S+\.\S+$/.test(email)) return setError("请输入有效邮箱");
-    setOtpSent(true);
-    setError("");
+    try {
+      await auth.sendCode(email);
+      setOtpSent(true);
+      setError("");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "验证码发送失败");
+    }
   };
 
-  const verify = () => {
-    if (otp !== DEMO_OTP) return setError("验证码不正确");
-    localStorage.setItem(SESSION_KEY, "true");
-    setLoggedIn(true);
-    setError("");
+  const verify = async () => {
+    try {
+      await auth.verifyCode(email, otp);
+      setError("");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "验证码不正确");
+    }
   };
 
   const submit = async () => {
@@ -81,9 +82,11 @@ export function CommentsPanel({ open, onClose, book, pageNumber, onCountChange }
     setSending(true);
     setError("");
     try {
+      const token = await auth.getAccessToken();
+      if (!token) throw new Error("请先登录");
       const response = await fetch(`/api/public/books/${book.slug}/comments`, {
         method: "POST",
-        headers: { "content-type": "application/json", ...demoAuthHeaders(DEMO_READER.id) },
+        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
         body: JSON.stringify({ body: text, versionId, pageNumber: attachPage ? pageNumber : undefined }),
       });
       const result = await response.json();
@@ -98,7 +101,9 @@ export function CommentsPanel({ open, onClose, book, pageNumber, onCountChange }
   };
 
   const remove = async (commentId: string) => {
-    const response = await fetch(`/api/comments/${commentId}`, { method: "DELETE", headers: demoAuthHeaders(DEMO_READER.id) });
+    const token = await auth.getAccessToken();
+    if (!token) return setError("请先登录");
+    const response = await fetch(`/api/comments/${commentId}`, { method: "DELETE", headers: { authorization: `Bearer ${token}` } });
     if (!response.ok) return setError("无法删除评论");
     setComments((current) => current.filter((comment) => comment.id !== commentId));
   };
@@ -125,9 +130,9 @@ export function CommentsPanel({ open, onClose, book, pageNumber, onCountChange }
         <div ref={endRef} />
       </div>
 
-      {!loggedIn ? <div className="comments-login">
+      {!auth.user ? <div className="comments-login">
         <span><LogIn size={21} /></span><h2>登录后发表评论</h2>
-        {!otpSent ? <><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@example.com" /><button onClick={requestCode}>发送验证码</button></> : <><input inputMode="numeric" maxLength={6} value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, ""))} placeholder="六位验证码" /><button onClick={verify}>验证并登录</button><small>本地演示验证码：{DEMO_OTP}</small></>}
+        {!otpSent ? <><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@example.com" /><button onClick={() => void requestCode()}>发送验证码</button></> : <><input inputMode="numeric" maxLength={6} value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, ""))} placeholder="六位验证码" /><button onClick={() => void verify()}>验证并登录</button></>}
         {error && <p>{error}</p>}
       </div> : <div className="comments-composer">
         <textarea maxLength={500} rows={3} value={body} onChange={(event) => setBody(event.target.value)} placeholder="写下你的评论…" />

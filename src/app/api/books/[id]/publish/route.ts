@@ -37,6 +37,11 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       });
       if (versionError) throw new Error("无法生成公开版本");
       const { error } = await identity.database!.from("books").update({
+        slug: parsed.data.slug,
+        title: parsed.data.title,
+        subtitle: parsed.data.subtitle,
+        description: parsed.data.description,
+        draft_document: parsed.data.document,
         visibility: parsed.data.visibility,
         ai_enabled: parsed.data.aiEnabled,
         comments_enabled: parsed.data.commentsEnabled,

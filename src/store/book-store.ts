@@ -44,6 +44,7 @@ interface BookStore {
   setActivePage: (pageId: string) => void;
   selectElement: (elementId: string | null) => void;
   setBookMeta: (patch: Partial<Pick<Photobook, "title" | "subtitle" | "description" | "aiEnabled" | "commentsEnabled">>) => void;
+  replaceBooks: (books: Photobook[]) => void;
   selectBook: (bookId: string) => void;
   openPublicBook: (book: Photobook) => void;
   createBlankBook: (authorId: string, authorName: string, bookId?: string, slug?: string) => string;
@@ -116,6 +117,19 @@ export const useBookStore = create<BookStore>()(
       setActivePage: (activePageId) => set({ activePageId, selectedElementId: null, tool: "select" }),
       selectElement: (selectedElementId) => set({ selectedElementId, tool: "select" }),
       setBookMeta: (patch) => set((state) => withMutation(state, (book) => Object.assign(book, patch))),
+      replaceBooks: (books) => {
+        const first = books[0];
+        if (!first) return set({ books: [], past: [], future: [], selectedElementId: null });
+        set({
+          book: cloneBook(first),
+          books: books.map(cloneBook),
+          activePageId: first.document.pages[0].id,
+          selectedElementId: null,
+          tool: "select",
+          past: [],
+          future: [],
+        });
+      },
       selectBook: (bookId) => {
         const selected = get().books.find((book) => book.id === bookId);
         if (!selected) return;

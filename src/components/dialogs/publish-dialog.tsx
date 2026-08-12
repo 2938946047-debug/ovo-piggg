@@ -5,14 +5,18 @@ import * as Dialog from "@radix-ui/react-dialog";
 import { Check, Copy, Globe2, Link2, Loader2, LockKeyhole, X } from "lucide-react";
 import { useBookStore } from "@/store/book-store";
 import { demoAuthHeaders } from "@/lib/demo-auth";
+import { useAuth } from "@/components/auth/auth-provider";
 
 interface PublishDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onReadPublished: () => void;
+  aiAvailable: boolean;
+  commentsAvailable: boolean;
 }
 
-export function PublishDialog({ open, onOpenChange, onReadPublished }: PublishDialogProps) {
+export function PublishDialog({ open, onOpenChange, onReadPublished, aiAvailable, commentsAvailable }: PublishDialogProps) {
+  const auth = useAuth();
   const { book, publish, setBookMeta } = useBookStore();
   const [visibility, setVisibility] = useState<"unlisted" | "public">(book.status === "public" ? "public" : "unlisted");
   const [pending, setPending] = useState(false);
@@ -25,13 +29,14 @@ export function PublishDialog({ open, onOpenChange, onReadPublished }: PublishDi
     setPending(true);
     setError("");
     try {
+      const token = await auth.getAccessToken();
       const response = await fetch(`/api/books/${book.id}/publish`, {
         method: "POST",
-        headers: { "content-type": "application/json", ...demoAuthHeaders(book.authorId) },
+        headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : demoAuthHeaders(book.authorId)) },
         body: JSON.stringify({
           visibility,
-          aiEnabled: book.aiEnabled,
-          commentsEnabled: book.commentsEnabled,
+          aiEnabled: aiAvailable && book.aiEnabled,
+          commentsEnabled: commentsAvailable && book.commentsEnabled,
           slug: book.slug,
           title: book.title,
           subtitle: book.subtitle,
@@ -70,8 +75,8 @@ export function PublishDialog({ open, onOpenChange, onReadPublished }: PublishDi
                 <span><Globe2 size={20} /></span><div><strong>公开作品</strong><small>进入作品广场，可被公开浏览</small></div>{visibility === "public" && <Check size={17} />}
               </button>
             </div>
-            <label className="publish-toggle"><span><strong>允许浏览者问 AI</strong><small>浏览者需要邮箱验证；只能读取本次公开快照</small></span><input type="checkbox" checked={book.aiEnabled} onChange={(event) => setBookMeta({ aiEnabled: event.target.checked })} /></label>
-            <label className="publish-toggle"><span><strong>允许浏览者评论</strong><small>评论只关联当前公开版本</small></span><input type="checkbox" checked={book.commentsEnabled} onChange={(event) => setBookMeta({ commentsEnabled: event.target.checked })} /></label>
+            {aiAvailable && <label className="publish-toggle"><span><strong>允许浏览者问 AI</strong><small>浏览者需要邮箱验证；只能读取本次公开快照</small></span><input type="checkbox" checked={book.aiEnabled} onChange={(event) => setBookMeta({ aiEnabled: event.target.checked })} /></label>}
+            {commentsAvailable && <label className="publish-toggle"><span><strong>允许浏览者评论</strong><small>评论只关联当前公开版本</small></span><input type="checkbox" checked={book.commentsEnabled} onChange={(event) => setBookMeta({ commentsEnabled: event.target.checked })} /></label>}
             <div className="privacy-note"><LockKeyhole size={16} /><span>原图仍为私有；公开衍生图会移除 EXIF 与 GPS，仅显示你主动公开的地点。</span></div>
             {error && <div className="dialog-notice">{error}</div>}
             <button className="dialog-primary" onClick={() => void submit()} disabled={pending}>{pending ? <Loader2 className="spin" size={17} /> : <Globe2 size={17} />}发布当前版本</button>

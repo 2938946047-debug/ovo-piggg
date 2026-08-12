@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { Upload, X } from "lucide-react";
 import { useBookStore } from "@/store/book-store";
 import { demoAuthHeaders } from "@/lib/demo-auth";
+import { useAuth } from "@/components/auth/auth-provider";
 import { prepareImportedImage } from "@/lib/image-import";
 import type { PatternKind } from "@/types/book";
 
@@ -17,6 +18,7 @@ const patterns: Array<{ kind: PatternKind; label: string }> = [
 ];
 
 export function PatternPanel() {
+  const auth = useAuth();
   const { book, tool, setTool, addPattern, addImage } = useBookStore();
   const input = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
@@ -34,9 +36,10 @@ export function PatternPanel() {
     }
     if (file.type === "image/svg+xml") {
       const source = await file.text();
+      const token = await auth.getAccessToken();
       const response = await fetch("/api/decorations/process", {
         method: "POST",
-        headers: { "content-type": "application/json", ...demoAuthHeaders(book.authorId) },
+        headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : demoAuthHeaders(book.authorId)) },
         body: JSON.stringify({ source, name: file.name }),
       });
       const result = await response.json();

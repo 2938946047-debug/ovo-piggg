@@ -12,9 +12,11 @@ interface BookReaderProps {
   publishedOnly?: boolean;
   onBack: () => void;
   onGallery: () => void;
+  aiAvailable: boolean;
+  commentsAvailable: boolean;
 }
 
-export function BookReader({ publishedOnly = false, onBack, onGallery }: BookReaderProps) {
+export function BookReader({ publishedOnly = false, onBack, onGallery, aiAvailable, commentsAvailable }: BookReaderProps) {
   const book = useBookStore((state) => state.book);
   const sceneDocument = publishedOnly && book.publishedSnapshot ? book.publishedSnapshot.document : book.document;
   const [pageIndex, setPageIndex] = useState(0);
@@ -50,15 +52,15 @@ export function BookReader({ publishedOnly = false, onBack, onGallery }: BookRea
         <div className="reader-header-spacer" />
         {publishedOnly && <button className="reader-text-button" onClick={onGallery} aria-label="作品广场"><Images size={17} /><span>作品广场</span></button>}
         <button className="reader-icon-button" onClick={() => document.documentElement.requestFullscreen?.()} aria-label="全屏阅读"><Maximize2 size={19} /></button>
-        {publishedOnly && book.commentsEnabled && <button className="reader-comment-button" aria-label="查看评论" onClick={() => { setAiOpen(false); setCommentsOpen(true); }}><MessageCircle size={18} /><span>评论{commentCount > 0 ? ` ${commentCount}` : ""}</span></button>}
-        {book.aiEnabled && <button className="reader-ai-button" aria-label="问问 AI" onClick={() => { setCommentsOpen(false); setFocusImage(null); setAiOpen(true); }}><Bot size={18} /><span>问问 AI</span></button>}
+        {commentsAvailable && publishedOnly && book.commentsEnabled && <button className="reader-comment-button" aria-label="查看评论" onClick={() => { setAiOpen(false); setCommentsOpen(true); }}><MessageCircle size={18} /><span>评论{commentCount > 0 ? ` ${commentCount}` : ""}</span></button>}
+        {aiAvailable && book.aiEnabled && <button className="reader-ai-button" aria-label="问问 AI" onClick={() => { setCommentsOpen(false); setFocusImage(null); setAiOpen(true); }}><Bot size={18} /><span>问问 AI</span></button>}
       </header>
 
       <section className="reader-stage" aria-label={`第 ${pageIndex + 1} 页`}>
         <button className="reader-arrow previous" onClick={() => go(-1)} disabled={pageIndex === 0} aria-label="上一页"><ChevronLeft size={25} /></button>
         <div className="reader-canvas-wrap">
           <div key={page.id} className={`reader-page-motion reader-transition-${page.transition ?? "fade"}`} data-transition={page.transition ?? "fade"}>
-            <EditorCanvas page={page} readOnly maxHeight={820} onImageFocus={(image) => { setCommentsOpen(false); setFocusImage(image); setAiOpen(true); }} />
+            <EditorCanvas page={page} readOnly maxHeight={820} onImageFocus={aiAvailable && book.aiEnabled ? (image) => { setCommentsOpen(false); setFocusImage(image); setAiOpen(true); } : undefined} />
             {visibleLocation && <span className="reader-location"><MapPin size={13} />{visibleLocation}</span>}
           </div>
         </div>
@@ -73,8 +75,8 @@ export function BookReader({ publishedOnly = false, onBack, onGallery }: BookRea
         <span>{page.name}</span>
       </footer>
 
-      <AIAssistant open={aiOpen} onClose={() => setAiOpen(false)} viewerMode={publishedOnly} pageId={page.id} focusImage={focusImage} />
-      {publishedOnly && book.publishedSnapshot && <CommentsPanel open={commentsOpen} onClose={() => setCommentsOpen(false)} book={book} pageNumber={pageIndex + 1} onCountChange={setCommentCount} />}
+      {aiAvailable && <AIAssistant open={aiOpen} onClose={() => setAiOpen(false)} viewerMode={publishedOnly} pageId={page.id} focusImage={focusImage} />}
+      {commentsAvailable && publishedOnly && book.publishedSnapshot && <CommentsPanel open={commentsOpen} onClose={() => setCommentsOpen(false)} book={book} pageNumber={pageIndex + 1} onCountChange={setCommentCount} />}
     </main>
   );
 }

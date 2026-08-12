@@ -1,6 +1,6 @@
 "use client";
 
-import { BookOpen, Bot, Clock3, MoreHorizontal, Plus, Search, Settings2 } from "lucide-react";
+import { BookOpen, Bot, Clock3, LogOut, MoreHorizontal, Plus, Search } from "lucide-react";
 import { useBookStore } from "@/store/book-store";
 
 interface DashboardProps {
@@ -8,11 +8,14 @@ interface DashboardProps {
   onRead: (bookId: string) => void;
   onCreate: () => void;
   onGallery: () => void;
+  authorId: string;
+  authorName: string;
+  onSignOut: () => void;
 }
 
-export function Dashboard({ onEdit, onRead, onCreate, onGallery }: DashboardProps) {
+export function Dashboard({ onEdit, onRead, onCreate, onGallery, authorId, authorName, onSignOut }: DashboardProps) {
   const allBooks = useBookStore((state) => state.books);
-  const books = allBooks.filter((book) => book.authorId === "user_lin");
+  const books = allBooks.filter((book) => book.authorId === authorId);
   return (
     <main className="dashboard-shell">
       <aside className="dashboard-sidebar">
@@ -22,8 +25,8 @@ export function Dashboard({ onEdit, onRead, onCreate, onGallery }: DashboardProp
           <button onClick={onGallery}><span className="nav-grid-icon" />作品广场</button>
           <button><Bot size={18} />AI 用量</button>
         </nav>
-        <button className="dashboard-settings"><Settings2 size={18} />设置</button>
-        <div className="dashboard-account"><span>林</span><div><strong>林屿</strong><small>创作者账户</small></div></div>
+        <button className="dashboard-settings" onClick={onSignOut}><LogOut size={18} />退出登录</button>
+        <div className="dashboard-account"><span>{authorName.slice(0, 1)}</span><div><strong>{authorName}</strong><small>创作者账户</small></div></div>
       </aside>
 
       <section className="dashboard-main">

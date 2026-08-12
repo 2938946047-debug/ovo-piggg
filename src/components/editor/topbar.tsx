@@ -10,9 +10,11 @@ interface TopbarProps {
   onAI: () => void;
   onPublish: () => void;
   onExport: () => void;
+  authorName: string;
+  aiAvailable: boolean;
 }
 
-export function Topbar({ onDashboard, onPreview, onAI, onPublish, onExport }: TopbarProps) {
+export function Topbar({ onDashboard, onPreview, onAI, onPublish, onExport, authorName, aiAvailable }: TopbarProps) {
   const { book, savedAt, past, future, undo, redo, setBookMeta } = useBookStore();
   return (
     <header className="topbar">
@@ -27,10 +29,10 @@ export function Topbar({ onDashboard, onPreview, onAI, onPublish, onExport }: To
       <div className="topbar-group">
         <button className="text-button" onClick={onExport} aria-label="导出"><Download size={17} /><span>导出</span></button>
         <button className="text-button" onClick={onPreview} aria-label="预览"><Eye size={17} /><span>预览</span></button>
-        <button className="ai-button" onClick={onAI} aria-label="问问 AI"><Bot size={18} /><span>问问 AI</span></button>
+        {aiAvailable && <button className="ai-button" onClick={onAI} aria-label="问问 AI"><Bot size={18} /><span>问问 AI</span></button>}
         <button className="publish-button" onClick={onPublish}><Share2 size={17} />发布<ChevronDown size={14} /></button>
       </div>
-      <button className="avatar-button" aria-label="账户：林屿">林</button>
+      <button className="avatar-button" aria-label={`账户：${authorName}`}>{authorName.slice(0, 1)}</button>
     </header>
   );
 }

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUp, Bot, Check, ExternalLink, Image as ImageIcon, LogIn, MapPin, Sparkles, X } from "lucide-react";
 import { createId } from "@/lib/ids";
-import { DEMO_AUTHOR, DEMO_READER, demoAuthHeaders } from "@/lib/demo-auth";
+import { useAuth } from "@/components/auth/auth-provider";
 import { useBookStore } from "@/store/book-store";
 import type { AIMessage, ImageElement } from "@/types/book";
 
@@ -16,6 +16,7 @@ interface AIAssistantProps {
 }
 
 export function AIAssistant({ open, onClose, viewerMode = false, pageId, focusImage }: AIAssistantProps) {
+  const auth = useAuth();
   const { book, activePageId } = useBookStore();
   const currentPageId = pageId ?? activePageId;
   const document = viewerMode && book.publishedSnapshot ? book.publishedSnapshot.document : book.document;
@@ -24,17 +25,11 @@ export function AIAssistant({ open, onClose, viewerMode = false, pageId, focusIm
   const [question, setQuestion] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
-  const [loggedIn, setLoggedIn] = useState(!viewerMode);
   const [email, setEmail] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [otp, setOtp] = useState("");
   const [includeExact, setIncludeExact] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!viewerMode) return;
-    setLoggedIn(localStorage.getItem("white-page-demo-login-v2") === "true");
-  }, [viewerMode]);
 
   useEffect(() => {
     if (!open) return;
@@ -53,23 +48,27 @@ export function AIAssistant({ open, onClose, viewerMode = false, pageId, focusIm
 
   if (!open) return null;
 
-  const signIn = () => {
+  const signIn = async () => {
     if (!/^\S+@\S+\.\S+$/.test(email)) {
       setError("请输入有效邮箱");
       return;
     }
-    setOtpSent(true);
-    setError("");
+    try {
+      await auth.sendCode(email);
+      setOtpSent(true);
+      setError("");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "验证码发送失败");
+    }
   };
 
-  const verify = () => {
-    if (otp !== "246810") {
-      setError("验证码不正确");
-      return;
+  const verify = async () => {
+    try {
+      await auth.verifyCode(email, otp);
+      setError("");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "验证码不正确");
     }
-    localStorage.setItem("white-page-demo-login-v2", "true");
-    setLoggedIn(true);
-    setError("");
   };
 
   const ask = async (suggested?: string) => {
@@ -87,9 +86,11 @@ export function AIAssistant({ open, onClose, viewerMode = false, pageId, focusIm
         .filter(Boolean)
         .join("\n");
       const image = focusImage ?? page.elements.find((element): element is ImageElement => element.type === "image" && !element.decorative);
+      const token = await auth.getAccessToken();
+      if (!token) throw new Error("请先登录");
       const response = await fetch("/api/ai/ask", {
         method: "POST",
-        headers: { "content-type": "application/json", ...demoAuthHeaders(viewerMode ? DEMO_READER.id : DEMO_AUTHOR.id) },
+        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
         body: JSON.stringify({
           question: text,
           conversation: [...messages, userMessage].slice(-6).map(({ role, content }) => ({ role, content })),
@@ -142,18 +143,17 @@ export function AIAssistant({ open, onClose, viewerMode = false, pageId, focusIm
           <button onClick={onClose} aria-label="关闭"><X size={20} /></button>
         </header>
 
-        {!loggedIn ? (
+        {!auth.user ? (
           <div className="ai-login">
             <div className="ai-login-icon"><LogIn size={22} /></div>
             <h2>登录后继续提问</h2>
             <p>问答只在当前会话保留，不会提供给作者查看。</p>
             {!otpSent ? <>
               <label><span>邮箱</span><input type="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@example.com" /></label>
-              <button onClick={signIn}>发送验证码</button>
+              <button onClick={() => void signIn()}>发送验证码</button>
             </> : <>
-              <label><span>六位验证码</span><input inputMode="numeric" maxLength={6} value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, ""))} placeholder="246810" /></label>
-              <button onClick={verify}>验证并登录</button>
-              <small className="demo-code">本地演示验证码：246810</small>
+              <label><span>六位验证码</span><input inputMode="numeric" maxLength={6} value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, ""))} placeholder="六位验证码" /></label>
+              <button onClick={() => void verify()}>验证并登录</button>
             </>}
             {error && <p className="field-error">{error}</p>}
           </div>

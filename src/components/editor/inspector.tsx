@@ -21,7 +21,7 @@ function Segmented({ value, options, onChange, label }: { value: string; options
   );
 }
 
-export function Inspector() {
+export function Inspector({ aiAvailable = false, commentsAvailable = false }: { aiAvailable?: boolean; commentsAvailable?: boolean }) {
   const {
     book,
     activePageId,
@@ -52,8 +52,8 @@ export function Inspector() {
           <option value="none">无转场</option><option value="fade">淡入</option><option value="slide-left">向左滑动</option><option value="zoom">轻微缩放</option><option value="wipe">从左擦入</option>
         </select></label>
         <div className="white-policy"><span className="white-swatch" />白色底页不可修改</div>
-        <label className="toggle-row"><span><strong>公开 AI 问答</strong><small>发布后允许登录浏览者提问</small></span><input type="checkbox" checked={book.aiEnabled} onChange={(event) => setBookMeta({ aiEnabled: event.target.checked })} /></label>
-        <label className="toggle-row"><span><strong>公开评论</strong><small>发布后允许登录浏览者评论</small></span><input type="checkbox" checked={book.commentsEnabled} onChange={(event) => setBookMeta({ commentsEnabled: event.target.checked })} /></label>
+        {aiAvailable && <label className="toggle-row"><span><strong>公开 AI 问答</strong><small>发布后允许登录浏览者提问</small></span><input type="checkbox" checked={book.aiEnabled} onChange={(event) => setBookMeta({ aiEnabled: event.target.checked })} /></label>}
+        {commentsAvailable && <label className="toggle-row"><span><strong>公开评论</strong><small>发布后允许登录浏览者评论</small></span><input type="checkbox" checked={book.commentsEnabled} onChange={(event) => setBookMeta({ commentsEnabled: event.target.checked })} /></label>}
       </aside>
     );
   }
