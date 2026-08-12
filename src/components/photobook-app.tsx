@@ -192,7 +192,7 @@ export function PhotobookApp() {
   const authorId = auth.user?.id ?? DEMO_AUTHOR.id;
   const authorName = auth.user ? auth.displayName : DEMO_AUTHOR.name;
 
-  if (view === "dashboard") return <><Dashboard onEdit={(id) => openOwnedBook(id, "editor")} onRead={(id) => openOwnedBook(id, "preview")} onCreate={() => void createBook()} onGallery={() => setView("gallery")} authorId={authorId} authorName={authorName} onSignOut={() => void auth.signOut()} />{saveError && <div className="save-error-toast">{saveError}</div>}</>;
+  if (view === "dashboard") return <><Dashboard onEdit={(id) => openOwnedBook(id, "editor")} onRead={(id) => openOwnedBook(id, "preview")} onCreate={() => void createBook()} onGallery={() => setView("gallery")} authorId={authorId} authorName={authorName} onSignOut={() => void auth.signOut()} aiAvailable={aiAvailable} />{saveError && <div className="save-error-toast">{saveError}</div>}</>;
   if (view === "gallery") return <Gallery onBack={() => setView("dashboard")} onOpen={() => setView("public-reader")} onCreate={() => void createBook()} aiAvailable={aiAvailable} />;
   if (view === "preview" || view === "public-reader") return <BookReader publishedOnly={view === "public-reader"} onBack={() => setView(view === "public-reader" ? "gallery" : "editor")} onGallery={() => setView("gallery")} aiAvailable={aiAvailable} commentsAvailable={commentsAvailable} />;
 

@@ -11,9 +11,10 @@ interface DashboardProps {
   authorId: string;
   authorName: string;
   onSignOut: () => void;
+  aiAvailable: boolean;
 }
 
-export function Dashboard({ onEdit, onRead, onCreate, onGallery, authorId, authorName, onSignOut }: DashboardProps) {
+export function Dashboard({ onEdit, onRead, onCreate, onGallery, authorId, authorName, onSignOut, aiAvailable }: DashboardProps) {
   const allBooks = useBookStore((state) => state.books);
   const books = allBooks.filter((book) => book.authorId === authorId);
   return (
@@ -23,7 +24,7 @@ export function Dashboard({ onEdit, onRead, onCreate, onGallery, authorId, autho
         <nav>
           <button className="active"><BookOpen size={18} />我的作品</button>
           <button onClick={onGallery}><span className="nav-grid-icon" />作品广场</button>
-          <button><Bot size={18} />AI 用量</button>
+          {aiAvailable && <button><Bot size={18} />AI 用量</button>}
         </nav>
         <button className="dashboard-settings" onClick={onSignOut}><LogOut size={18} />退出登录</button>
         <div className="dashboard-account"><span>{authorName.slice(0, 1)}</span><div><strong>{authorName}</strong><small>创作者账户</small></div></div>
